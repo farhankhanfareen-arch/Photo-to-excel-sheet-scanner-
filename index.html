@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ScanSheet - Photo to Excel Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#0a0c10;--bg2:#10131a;--bg3:#161a25;--bg4:#1c2130;
+  --border:#252b3b;--border2:#2f3750;
+  --fg:#e4e7ef;--fg2:#a0a8c0;--muted:#5c6480;
+  --accent:#e89830;--accent2:#f0b050;--accent-dim:rgba(232,152,48,0.1);
+  --success:#2dd4a0;--success-dim:rgba(45,212,160,0.1);
+  --danger:#f06060;--danger-dim:rgba(240,96,96,0.1);
+  --info:#58a0f0;--info-dim:rgba(88,160,240,0.1);
+  --cell-h:36px;--hdr-h:40px;--col-w:140px;
+  --radius:10px;--radius-sm:6px;
+  --shadow:0 4px 24px rgba(0,0,0,0.4);
+  --tr:0.2s ease;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:15px;scroll-behavior:smooth;}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+
+/* 顶部栏 */
+.topbar{position:sticky;top:0;z-index:100;background:rgba(10,12,16,0.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 16px;}
+.topbar-inner{max-width:1400px;margin:0 auto;display:flex;align-items:center;height:58px;gap:12px;}
+.brand{display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;}
+.brand-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#0a0c10;font-weight:800;}
+.brand-text{font-size:18px;font-weight:700;color:var(--fg);letter-spacing:-0.5px;}
+.brand-text span{color:var(--accent);}
+
+/* 工具栏 */
+.toolbar{display:flex;align-items:center;gap:6px;flex:1;overflow-x:auto;padding:4px 0;-ms-overflow-style:none;scrollbar-width:none;}
+.toolbar::-webkit-scrollbar{display:none;}
+.tbtn{display:flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid var(--border);background:var(--bg3);color:var(--fg2);border-radius:var(--radius-sm);cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;white-space:nowrap;transition:var(--tr);flex-shrink:0;}
+.tbtn:hover{background:var(--bg4);color:var(--fg);border-color:var(--border2);}
+.tbtn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0a0c10;border-color:transparent;font-weight:700;}
+.tbtn.primary:hover{opacity:0.9;transform:translateY(-1px);}
+.tbtn.danger{color:var(--danger);border-color:var(--danger-dim);}
+.tbtn.danger:hover{background:var(--danger-dim);}
+.tbtn i{font-size:13px;}
+.tbtn-sep{width:1px;height:24px;background:var(--border);flex-shrink:0;}
+
+/* 搜索框 */
+.search-wrap{position:relative;flex-shrink:0;}
+.search-wrap input{width:180px;padding:7px 12px 7px 32px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--fg);font-size:12px;font-family:inherit;outline:none;transition:var(--tr);}
+.search-wrap input:focus{border-color:var(--accent);width:220px;}
+.search-wrap i{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:12px;}
+
+/* 主内容区 */
+.main{max-width:1400px;margin:0 auto;padding:16px;}
+
+/* 上传区域 */
+.upload-section{margin-bottom:20px;}
+.upload-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:48px 24px;text-align:center;cursor:pointer;transition:var(--tr);background:var(--bg2);position:relative;overflow:hidden;}
+.upload-zone::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,var(--accent-dim),transparent 70%);opacity:0;transition:var(--tr);}
+.upload-zone:hover::before,.upload-zone.dragover::before{opacity:1;}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);}
+.upload-zone i.uz-icon{font-size:42px;color:var(--muted);margin-bottom:14px;display:block;position:relative;}
+.upload-zone h2{font-size:18px;font-weight:700;margin-bottom:6px;position:relative;}
+.upload-zone p{font-size:13px;color:var(--muted);position:relative;}
+.upload-zone input{display:none;}
+
+/* 预览条 */
+.preview-bar{display:none;align-items:center;gap:14px;padding:12px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;animation:slideIn 0.3s ease;}
+.preview-bar.show{display:flex;}
+.preview-bar img{height:52px;border-radius:6px;border:1px solid var(--border);object-fit:cover;}
+.preview-bar .pb-info{flex:1;min-width:0;}
+.preview-bar .pb-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.preview-bar .pb-size{font-size:11px;color:var(--muted);}
+
+/* 进度条 */
+.progress-wrap{display:none;margin-bottom:16px;animation:slideIn 0.3s ease;}
+.progress-wrap.show{display:block;}
+.progress-label{display:flex;justify-content:space-between;margin-bottom:6px;font-size:12px;font-weight:600;}
+.progress-bar{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;transition:width 0.3s ease;width:0%;}
+
+/* 电子表格容器 */
+.sheet-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.sheet-scroll{overflow:auto;max-height:calc(100vh - 220px);position:relative;}
+.sheet{border-collapse:collapse;width:max-content;min-width:100%;}
+
+/* 列头 */
+.sheet thead{position:sticky;top:0;z-index:10;}
+.sheet thead th{height:var(--hdr-h);min-width:var(--col-w);background:var(--bg3);border-right:1px solid var(--border);border-bottom:2px solid var(--border2);padding:0 12px;font-size:12px;font-weight:700;color:var(--fg2);text-align:left;white-space:nowrap;cursor:default;user-select:none;position:relative;}
+.sheet thead th:first-child{min-width:50px;width:50px;max-width:50px;text-align:center;color:var(--muted);font-size:11px;}
+.sheet thead th .th-text{outline:none;display:block;padding:4px 0;min-width:20px;cursor:text;border-bottom:1px solid transparent;transition:var(--tr);}
+.sheet thead th .th-text:focus{border-bottom-color:var(--accent);color:var(--fg);}
+.sheet thead th .th-text:hover{color:var(--fg);}
+.th-actions{position:absolute;right:4px;top:50%;transform:translateY(-50%);display:flex;gap:2px;opacity:0;transition:var(--tr);}
+.sheet thead th:hover .th-actions{opacity:1;}
+.th-btn{width:22px;height:22px;border:none;background:var(--bg4);color:var(--muted);border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:var(--tr);}
+.th-btn:hover{background:var(--danger-dim);color:var(--danger);}
+
+/* 行号 */
+.sheet tbody td:first-child{min-width:50px;width:50px;max-width:50px;background:var(--bg3);border-right:1px solid var(--border);border-bottom:1px solid var(--border);text-align:center;font-size:11px;color:var(--muted);font-weight:600;cursor:default;user-select:none;position:sticky;left:0;z-index:5;}
+
+/* 数据单元格 */
+.sheet tbody td{height:var(--cell-h);min-width:var(--col-w);border-right:1px solid var(--border);border-bottom:1px solid var(--border);padding:0;font-size:13px;position:relative;}
+.cell-input{width:100%;height:100%;padding:0 12px;background:transparent;border:none;color:var(--fg);font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;transition:background 0.15s;}
+.cell-input:focus{background:rgba(232,152,48,0.06);box-shadow:inset 0 0 0 1px var(--accent);}
+.cell-input::placeholder{color:var(--muted);opacity:0.5;}
+
+/* 行操作 */
+.row-del{position:absolute;right:2px;top:50%;transform:translateY(-50%);width:20px;height:20px;border:none;background:var(--danger-dim);color:var(--danger);border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;opacity:0;transition:var(--tr);z-index:2;}
+tr:hover .row-del{opacity:1;}
+.row-del:hover{background:var(--danger);color:#fff;}
+
+/* 选中行高亮 */
+.sheet tbody tr:hover td{background:rgba(255,255,255,0.015);}
+.sheet tbody tr:hover td:first-child{background:var(--bg4);}
+
+/* 底部状态栏 */
+.statusbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--bg3);border-top:1px solid var(--border);font-size:11px;color:var(--muted);font-weight:500;}
+.statusbar-left{display:flex;gap:16px;}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--success);display:inline-block;margin-right:4px;}
+
+/* 空状态 */
+.empty-sheet{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 24px;color:var(--muted);}
+.empty-sheet i{font-size:48px;margin-bottom:16px;opacity:0.25;}
+.empty-sheet h3{font-size:16px;font-weight:600;color:var(--fg2);margin-bottom:6px;}
+.empty-sheet p{font-size:13px;}
+
+/* 模态框 */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:200;display:none;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:14px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto;animation:modalIn 0.25s ease;}
+@keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:20px 20px 12px;}
+.modal-head h3{font-size:17px;font-weight:700;}
+.modal-close{width:32px;height:32px;border:1px solid var(--border);background:var(--bg3);color:var(--fg2);border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;transition:var(--tr);}
+.modal-close:hover{background:var(--danger-dim);color:var(--danger);border-color:var(--danger);}
+.modal-body{padding:8px 20px 20px;}
+.form-group{margin-bottom:14px;}
+.form-label{display:block;font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;}
+.form-input{width:100%;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--fg);font-size:13px;font-family:inherit;outline:none;transition:var(--tr);}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 20px;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;transition:var(--tr);}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0a0c10;}
+.btn-primary:hover{opacity:0.9;transform:translateY(-1px);}
+.btn-ghost{background:var(--bg3);color:var(--fg2);border:1px solid var(--border);}
+.btn-ghost:hover{background:var(--bg4);color:var(--fg);}
+.btn-full{width:100%;}
+.btn-group{display:flex;gap:8px;margin-top:8px;}
+
+/* Toast */
+.toast-box{position:fixed;top:70px;right:16px;z-index:300;display:flex;flex-direction:column;gap:8px;}
+.toast{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 18px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500;box-shadow:var(--shadow);animation:toastIn 0.3s ease,toastOut 0.3s ease 2.7s forwards;max-width:340px;}
+.toast.success{border-left:3px solid var(--success);}.toast.success i{color:var(--success);}
+.toast.error{border-left:3px solid var(--danger);}.toast.error i{color:var(--danger);}
+.toast.info{border-left:3px solid var(--info);}.toast.info i{color:var(--info);}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateX(30px)}}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+
+/* 拖拽高亮 */
+.drag-over-left{box-shadow:inset 3px 0 0 var(--accent)!important;}
+.drag-over-right{box-shadow:inset -3px 0 0 var(--accent)!important;}
+
+/* 排序指示器 */
+.sort-icon{font-size:9px;margin-left:4px;color:var(--accent);opacity:0;transition:var(--tr);}
+.sorted .sort-icon{opacity:1;}
+.sorted{color:var(--accent)!important;}
+
+/* 响应式 */
+@media(max-width:640px){
+  .topbar-inner{height:50px;gap:8px;}
+  .brand-text{display:none;}
+  .tbtn span{display:none;}
+  .tbtn{padding:7px 10px;}
+  .search-wrap input{width:120px;font-size:11px;}
+  .search-wrap input:focus{width:140px;}
+  .main{padding:10px;}
+  .upload-zone{padding:32px 16px;}
+  .upload-zone i.uz-icon{font-size:32px;}
+  .upload-zone h2{font-size:15px;}
+  .sheet-scroll{max-height:calc(100vh - 180px);}
+  :root{--cell-h:32px;--hdr-h:36px;--col-w:110px;}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important;}}
+</style>
+</head>
+<body>
+
+<!-- 顶部栏 -->
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand" onclick="resetApp()">
+      <div class="brand-icon">S</div>
+      <div class="brand-text">Scan<span>Sheet</span></div>
+    </div>
+    <div class="toolbar" id="toolbar">
+      <button class="tbtn primary" onclick="triggerUpload()" aria-label="Scan image"><i class="fas fa-camera"></i><span>Scan Image</span></button>
+      <div class="tbtn-sep"></div>
+      <button class="tbtn" onclick="addRow()" aria-label="Add row"><i class="fas fa-plus"></i><span>Row</span></button>
+      <button class="tbtn" onclick="showAddColModal()" aria-label="Add column"><i class="fas fa-columns"></i><span>Column</span></button>
+      <div class="tbtn-sep"></div>
+      <button class="tbtn" onclick="sortCurrentCol('asc')" aria-label="Sort ascending"><i class="fas fa-sort-amount-up"></i><span>Sort A-Z</span></button>
+      <button class="tbtn" onclick="sortCurrentCol('desc')" aria-label="Sort descending"><i class="fas fa-sort-amount-down"></i><span>Sort Z-A</span></button>
+      <div class="tbtn-sep"></div>
+      <button class="tbtn" onclick="triggerExcelImport()" aria-label="Import Excel"><i class="fas fa-file-import"></i><span>Import</span></button>
+      <button class="tbtn" onclick="exportExcel()" aria-label="Export Excel"><i class="fas fa-file-export"></i><span>Export</span></button>
+      <div class="tbtn-sep"></div>
+      <button class="tbtn danger" onclick="showClearConfirm()" aria-label="Clear data"><i class="fas fa-trash-alt"></i><span>Clear</span></button>
+    </div>
+    <div class="search-wrap">
+      <i class="fas fa-search"></i>
+      <input type="text" id="search-input" placeholder="Filter data..." oninput="filterData(this.value)" aria-label="Filter data">
+    </div>
+  </div>
+</div>
+
+<!-- 主内容 -->
+<div class="main">
+  <!-- 上传区 -->
+  <div class="upload-section" id="upload-section">
+    <div class="upload-zone" id="upload-zone" onclick="triggerUpload()"
+         ondragover="event.preventDefault();this.classList.add('dragover')"
+         ondragleave="this.classList.remove('dragover')"
+         ondrop="handleDrop(event)">
+      <i class="fas fa-cloud-upload-alt uz-icon"></i>
+      <h2>Drop an image here to scan</h2>
+      <p>Supports JPG, PNG, BMP, WebP &mdash; Tables and text will be extracted automatically</p>
+    </div>
+    <input type="file" id="file-input" accept="image/*" onchange="handleFile(this)">
+  </div>
+
+  <!-- 预览条 -->
+  <div class="preview-bar" id="preview-bar">
+    <img id="preview-img" src="" alt="Preview">
+    <div class="pb-info">
+      <div class="pb-name" id="preview-name"></div>
+      <div class="pb-size" id="preview-size"></div>
+    </div>
+    <button class="tbtn primary" onclick="startOCR()" id="scan-btn"><i class="fas fa-search"></i> Scan Now</button>
+    <button class="tbtn" onclick="clearPreview()"><i class="fas fa-times"></i></button>
+  </div>
+
+  <!-- 进度条 -->
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-label">
+      <span id="progress-text">Initializing OCR engine...</span>
+      <span id="progress-pct">0%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+  </div>
+
+  <!-- 电子表格 -->
+  <div class="sheet-wrap" id="sheet-wrap">
+    <div class="sheet-scroll" id="sheet-scroll">
+      <table class="sheet" id="sheet">
+        <thead id="sheet-head"></thead>
+        <tbody id="sheet-body"></tbody>
+      </table>
+    </div>
+    <div class="statusbar">
+      <div class="statusbar-left">
+        <span><span class="status-dot"></span>Ready</span>
+        <span id="stat-rows">0 rows</span>
+        <span id="stat-cols">0 columns</span>
+      </div>
+      <span id="stat-filtered"></span>
+    </div>
+  </div>
+</div>
+
+<!-- 添加列模态框 -->
+<div class="modal-overlay" id="col-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Add New Column</h3>
+      <button class="modal-close" onclick="closeColModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Column Name</label>
+        <input type="text" class="form-input" id="new-col-name" placeholder="Enter column name...">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="addColumnFromModal()">Add Column</button>
+    </div>
+  </div>
+</div>
+
+<!-- 确认清空模态框 -->
+<div class="modal-overlay" id="clear-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Clear All Data</h3>
+      <button class="modal-close" onclick="closeClearModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" style="text-align:center;">
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--danger-dim);color:var(--danger);display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 16px;">
+        <i class="fas fa-exclamation-triangle"></i>
+      </div>
+      <p style="color:var(--fg2);font-size:14px;margin-bottom:20px;line-height:1.6;">This will permanently delete all rows, columns, and data. This action cannot be undone.</p>
+      <div class="btn-group" style="justify-content:center;">
+        <button class="btn btn-ghost" onclick="closeClearModal()">Cancel</button>
+        <button class="btn" style="background:var(--danger);color:#fff;" onclick="clearAllData()">Clear Everything</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 隐藏的Excel导入 -->
+<input type="file" id="excel-input" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleExcelImport(this)">
+
+<!-- Toast容器 -->
+<div class="toast-box" id="toast-box"></div>
+
+<script>
+/* ============================================
+   数据层
+============================================ */
+const STORE_KEY = 'scansheet_data';
+const DEFAULT_COLS = ['Column A', 'Column B', 'Column C', 'Column D', 'Column E'];
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return { columns: [...DEFAULT_COLS], rows: [] };
+}
+
+function saveData() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(sheetData)); }
+  catch(e) { console.warn('Storage save failed', e); }
+}
+
+let sheetData = loadData();
+let filterQuery = '';
+let sortCol = -1;
+let sortDir = 'asc';
+let focusedCell = null; // {r, c}
+let pendingImage = null;
+
+/* ============================================
+   电子表格渲染
+============================================ */
+function renderSheet() {
+  renderHead();
+  renderBody();
+  updateStatus();
+}
+
+function renderHead() {
+  const thead = document.getElementById('sheet-head');
+  let html = '<tr><th>#</th>';
+  sheetData.columns.forEach((col, ci) => {
+    const isSorted = sortCol === ci;
+    c
